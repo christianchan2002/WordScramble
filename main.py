@@ -112,6 +112,7 @@ def init_state():
 
 
 def main():
+    init_state()
     st.title("Word Scramble Game")
     st.write("Unscramble the letters to find the original word!")
 
@@ -120,7 +121,6 @@ def main():
 
     start = st.button(" GIVE ME A WORD! ")
     if start:
-        init_state()
         with st.spinner("Fetching a word..."):
             word = get_word(min_len, max_len, verify=True)
             scrambled = scramble_word(word)
