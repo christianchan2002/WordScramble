@@ -131,7 +131,7 @@ def main():
         st.write(f"Scrambled Word:")
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            st.markdown(f"<h2 style='font-size: 48px; text-align: center; color: white;'>{st.session_state.scrambled}</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='font-size: 48px; text-align: center; '>{st.session_state.scrambled}</h2>", unsafe_allow_html=True)
         with col3:
             st.markdown("<div style='height: 24px;'></div>", unsafe_allow_html=True)  # spacing   
             st.button("Shuffle", on_click=lambda: st.session_state.update(scrambled=scramble_word(st.session_state.word)))
