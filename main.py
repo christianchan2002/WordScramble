@@ -154,7 +154,6 @@ st.markdown(
         bottom: 10px;
         width: 100%;
         text-align: center;
-        color: white;
         font-size: 12px;
     }
     </style>
