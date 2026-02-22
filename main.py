@@ -17,8 +17,39 @@ LEVELS = {
     "Hard": (9, 12),
     "Impossible": (13, 15)  # cap
 }
+def set_info(msg_type: str, text: str):
+    st.session_state.info_type = msg_type
+    st.session_state.info_text = text
 
 
+def set_error(msg_type: str, text: str):
+    st.session_state.error_type = msg_type
+    st.session_state.error_text = text
+
+
+def set_message(msg_type: Optional[str], text: str, is_error: bool = False):
+    st.session_state.message_type = msg_type
+    st.session_state.message_text = text
+
+
+def render_messages():
+    # error box
+    if st.session_state.error_type or st.session_state.error_text:
+        title = st.session_state.error_type
+        text = st.session_state.error_text
+        st.error(f"**{title}** {text}" if title else text)
+
+    # info box
+    if st.session_state.info_type or st.session_state.info_text:
+        title = st.session_state.info_type
+        text = st.session_state.info_text
+        st.info(f"**{title}** {text}" if title else text)
+
+    # plain message (definitions etc.)
+    if st.session_state.message_text:
+        st.write(st.session_state.message_text)
+
+    
 def fetch_word(length: int, timeout: float = 6.0) -> str:
     r = requests.get(RANDOM_WORD_API, params={"length": length, "number": 1}, timeout=timeout)
     r.raise_for_status()
@@ -63,18 +94,51 @@ def get_word(min_len: int, max_len: int, verify: bool, max_tries: int = 30) -> s
             last_err = e
     raise RuntimeError(f"Could not fetch a valid word after {max_tries} tries. Last error: {last_err}")
 
-def check_answer(guess: str, word: str) -> bool:
+
+def handle_submit():
+    guess = (st.session_state.guess_input or "").strip().lower()
+    word = st.session_state.word
+
+    if not word:
+        return
+
     if not guess:
-        return False
-    if guess.strip().lower() == word:
-        st.info("Correct! You unscrambled the word!")
-        st.write(f"Definitions: {fetch_definition(word) or 'No definitions found.'}")
-        return True
+        set_error(None, "Type a guess first.")
+        return
+
+    st.session_state.attempts += 1
+
+    # ✅ correct
+    if guess == word:
+        set_error(None, "")
+        set_info("Correct!", f"You unscrambled the word! The word was: **{word.upper()}**")
+        defs = fetch_definition(word)
+        if defs:
+            formatted_defs = "\n".join([f"{i+1}. {d}" for i, d in enumerate(defs[:3])])
+            set_message(None, f"**Definition:**\n{formatted_defs}")
+        else:
+            set_message(None, "No definitions found.")
+        st.session_state.disabled = True
+        return
+
+    # ❌ wrong
+    remaining = st.session_state.max_attempts - st.session_state.attempts
+    if remaining > 0:
+        set_error(None, f"Wrong! Try again. Attempts left: {remaining}")
+        return
+
+    # 🟥 game over
+    st.session_state.disabled = True
+    set_error("Game over!", f"You've used all {st.session_state.max_attempts} attempts. The word was: **{word.upper()}**")
+    set_info(None, "If you were wondering, what in the world is that??? \n Here you go...")
+    defs = fetch_definition(word)
+
+    if defs:
+        formatted_defs = "\n".join([f"{i+1}. {d}" for i, d in enumerate(defs[:3])])
+        set_message(None, f"**Definition:**\n{formatted_defs}")
     else:
-        st.error(f"Wrong! The correct word was: **{word}**")
-        st.info(f"If you were wondering, what in the world is that??? \n Here you go...")
-        st.write(f"Definitions: {fetch_definition(word) or 'No definitions found.'}")
-        return False
+        set_message(None, "No definitions found.")
+
 
 def fetch_definition(word: str, timeout: float = 6.0) -> list[str]:
     try:
@@ -108,43 +172,82 @@ def init_state():
         st.session_state.scrambled = None
     if "guess" not in st.session_state:
         st.session_state.guess = None
-
+    if "attempts" not in st.session_state:
+        st.session_state.attempts = 0
+    if "max_attempts" not in st.session_state:
+        st.session_state.max_attempts = 3 
+    if "disabled" not in st.session_state:
+        st.session_state.disabled = False
+    if "info_type" not in st.session_state:
+        st.session_state.info_type = None 
+    if "info_text" not in st.session_state:    
+        st.session_state.info_text = ""
+    if "error_type" not in st.session_state:
+        st.session_state.error_type = None
+    if "error_text" not in st.session_state:
+        st.session_state.error_text = ""
+    if "message_type" not in st.session_state:
+        st.session_state.message_type = None
+    if "message_text" not in st.session_state:
+        st.session_state.message_text = ""
+    if "guess_input" not in st.session_state:
+        st.session_state.guess_input = ""
+    if "prime_ui" not in st.session_state:
+        st.session_state.prime_ui = False
 
 
 def main():
     init_state()
+    if st.session_state.prime_ui:
+        st.session_state.prime_ui = False
     st.title("Word Scramble Game")
     st.write("Unscramble the letters to find the original word!")
-
-    level = st.selectbox("Select Difficulty Level", list(LEVELS.keys()))
-    min_len, max_len = LEVELS[level]
-
+    col1, col2, col3 = st.columns([0.5, 0.2, 0.3])
+    with col1:
+        level = st.selectbox("Select Difficulty Level", list(LEVELS.keys()))
+        min_len, max_len = LEVELS[level]
+    with col2:
+        max_attempts_ui = st.slider("Max Attempts", min_value=1, max_value=5, value=st.session_state.max_attempts, step=1)
     start = st.button(" GIVE ME A WORD! ")
     if start:
+        st.session_state.max_attempts = max_attempts_ui
+        st.session_state.attempts = 0
+        st.session_state.disabled = False
+        st.session_state.guess = None
+        st.session_state.info_type = None
+        st.session_state.info_text = ""
+        st.session_state.error_type = None  
+        st.session_state.error_text = ""    
+        st.session_state.message_type = None
+        st.session_state.message_text = "" 
+
         with st.spinner("Fetching a word..."):
             word = get_word(min_len, max_len, verify=True)
             scrambled = scramble_word(word)
         st.session_state.word = word
         st.session_state.scrambled = scrambled
-
+        st.session_state.prime_ui = True
+        st.rerun()
     if st.session_state.scrambled:
-        st.write(f"Scrambled Word:")
-        col1, col2, col3 = st.columns([1, 2, 1])
+        st.markdown("""<div style="display: flex; align-items: center; justify-content: center; height: 0px; font-size: 16px; ">Scrambled Word:</div>""", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([2, 6, 2], vertical_alignment="center")
+        with col1:
+            st.markdown("<div display: flex; align-items: center; justify-content: center; height: 64px;'></div>", unsafe_allow_html=True)
+            st.button("Hint💡", use_container_width=True, on_click=lambda: st.session_state.update(info_type="Hint:", info_text=f"The word starts with '{st.session_state.word[0].upper()}' and ends with '{st.session_state.word[-1].upper()}'"))
         with col2:
-            st.markdown(f"<h2 style='font-size: 48px; text-align: center; '>{st.session_state.scrambled}</h2>", unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; align-items: center; justify-content: center; height: 64px; font-size: 40px; font-weight: 700; letter-spacing: 2px; line-height: 1;"> {st.session_state.scrambled.upper()} </div>""",unsafe_allow_html=True)
         with col3:
-            st.markdown("<div style='height: 24px;'></div>", unsafe_allow_html=True)  # spacing   
-            st.button("Shuffle", on_click=lambda: st.session_state.update(scrambled=scramble_word(st.session_state.word)))
+            st.markdown("<div display: flex; align-items: center; justify-content: center; height: 64px;'></div>", unsafe_allow_html=True)
+            st.button("Shuffle", use_container_width=True, on_click=lambda: st.session_state.update(scrambled=scramble_word(st.session_state.word)))
         with st.form("guess_form", clear_on_submit=True):
-            guess = st.text_input("Your Guess:")
-            submitted = st.form_submit_button("Submit Guess")
-        if submitted:
-            if guess and st.session_state.word:
-                st.session_state.guess = guess
-                correct = check_answer(st.session_state.guess, st.session_state.word)
+            st.text_input("Your Guess:", key="guess_input", disabled=st.session_state.disabled)
+            st.form_submit_button("Submit Guess", on_click=handle_submit)
+        render_messages()
 
 
 main()
+
+
 st.markdown(
     """
     <style>
