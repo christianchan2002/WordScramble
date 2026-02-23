@@ -110,6 +110,9 @@ def handle_submit():
 
     # ✅ correct
     if guess == word:
+        st.session_state.score += 1
+        st.session_state.streak += 1
+        st.session_state.highest_streak = max(st.session_state.highest_streak, st.session_state.streak)
         set_error(None, "")
         set_info("Correct!", f"You unscrambled the word! The word was: **{word.upper()}**")
         defs = fetch_definition(word)
@@ -128,6 +131,7 @@ def handle_submit():
         return
 
     # 🟥 game over
+    st.session_state.streak = 0
     st.session_state.disabled = True
     set_error("Game over!", f"You've used all {st.session_state.max_attempts} attempts. The word was: **{word.upper()}**")
     set_info(None, "If you were wondering, what in the world is that??? \n Here you go...")
@@ -194,6 +198,12 @@ def init_state():
         st.session_state.guess_input = ""
     if "prime_ui" not in st.session_state:
         st.session_state.prime_ui = False
+    if "highest_streak" not in st.session_state:
+        st.session_state.highest_streak = 0
+    if "score" not in st.session_state:
+        st.session_state.score = 0
+    if "streak" not in st.session_state:
+        st.session_state.streak = 0
 
 
 def main():
@@ -202,13 +212,35 @@ def main():
         st.session_state.prime_ui = False
     st.title("Word Scramble Game")
     st.write("Unscramble the letters to find the original word!")
-    col1, col2, col3 = st.columns([0.5, 0.2, 0.3])
+    col1, col2, col3 = st.columns([0.4, 0.3, 0.3], vertical_alignment="center")
     with col1:
         level = st.selectbox("Select Difficulty Level", list(LEVELS.keys()))
         min_len, max_len = LEVELS[level]
     with col2:
         max_attempts_ui = st.slider("Max Attempts", min_value=1, max_value=5, value=st.session_state.max_attempts, step=1)
-    start = st.button(" GIVE ME A WORD! ")
+    with col3:
+        st.markdown(f"""<div style="display: flex; align-items: center; justify-content: right; gap: 23px; padding-top: 10px;">
+        <span style="font-size: 20px; font-weight: 700;">Highest Streak:</span>
+        <span style="font-size: 35px; font-weight: 700; line-height: 1;">{st.session_state.highest_streak}</span></div>""", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([2.5, 5, 2.5], vertical_alignment="center")
+    with col2:
+        st.markdown(f"""<div style="display: flex; align-items: center; justify-content: center; height: 4px; 
+                    font-size: 20px; font-weight: 700; line-height: 1;">Score:</div>""", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""<div style="display: flex; align-items: center; justify-content: right; height: 4px; 
+                    font-size: 20px; font-weight: 700; line-height: 1;">Current Streak:</div>""", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([2.2, 5.6, 2.2], vertical_alignment="center")
+    with col1:
+        st.markdown("<div style='display: flex; align-items: center; justify-content: center; height: 14px;'></div>", unsafe_allow_html=True)
+        start = st.button("GIVE ME A WORD!", use_container_width=True)
+    with col2:
+        st.markdown(f"""<div style="display: flex; align-items: center; justify-content: center; height: 64px; 
+                        font-size: 40px; font-weight: 700; letter-spacing: 2px; line-height: 1;">{st.session_state.score}</div>""", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""<div style="display: flex; align-items: center; justify-content: center; height: 64px; 
+                        font-size: 40px; font-weight: 700; letter-spacing: 2px; line-height: 1;">{st.session_state.streak}</div>""", unsafe_allow_html=True)
     if start:
         st.session_state.max_attempts = max_attempts_ui
         st.session_state.attempts = 0
@@ -219,7 +251,8 @@ def main():
         st.session_state.error_type = None  
         st.session_state.error_text = ""    
         st.session_state.message_type = None
-        st.session_state.message_text = "" 
+        st.session_state.message_text = ""
+        st.session_state.streak = 0 
 
         with st.spinner("Fetching a word..."):
             word = get_word(min_len, max_len, verify=True)
@@ -230,12 +263,13 @@ def main():
         st.rerun()
     if st.session_state.scrambled:
         st.markdown("""<div style="display: flex; align-items: center; justify-content: center; height: 0px; font-size: 16px; ">Scrambled Word:</div>""", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([2, 6, 2], vertical_alignment="center")
+        col1, col2, col3 = st.columns([2.1, 5.8, 2.1], vertical_alignment="center")
         with col1:
             st.markdown("<div display: flex; align-items: center; justify-content: center; height: 64px;'></div>", unsafe_allow_html=True)
             st.button("Hint💡", use_container_width=True, on_click=lambda: st.session_state.update(info_type="Hint:", info_text=f"The word starts with '{st.session_state.word[0].upper()}' and ends with '{st.session_state.word[-1].upper()}'"))
         with col2:
-            st.markdown(f"""<div style="display: flex; align-items: center; justify-content: center; height: 64px; font-size: 40px; font-weight: 700; letter-spacing: 2px; line-height: 1;"> {st.session_state.scrambled.upper()} </div>""",unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; align-items: center; justify-content: center; height: 64px; 
+                        font-size: 40px; font-weight: 700; letter-spacing: 2px; line-height: 1;"> {st.session_state.scrambled.upper()} </div>""",unsafe_allow_html=True)
         with col3:
             st.markdown("<div display: flex; align-items: center; justify-content: center; height: 64px;'></div>", unsafe_allow_html=True)
             st.button("Shuffle", use_container_width=True, on_click=lambda: st.session_state.update(scrambled=scramble_word(st.session_state.word)))
